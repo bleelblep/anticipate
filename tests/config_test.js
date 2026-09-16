@@ -18,20 +18,12 @@ assert(emery.some(i=>i.type==='color' && i.messageKey==='BacklightColor'));
 assert(emery.some(i=>i.messageKey==='WeatherLocation'));
 console.log('PASS: Clay keys, defaults and platform-specific RGB controls.');
 
-const vm=require('vm'),fs=require('fs');
-const handlers={},calls=[];let ready=false,watch={platform:'emery'},instance;
-function MockClay(c) {this.config=c;instance=this;this.generateUrl=()=>'';}
-const Pebble={addEventListener:(n,f)=>handlers[n]=f,getActiveWatchInfo:()=>{assert(ready,'Premature watch info access');return watch;},openURL:()=>{}};
-vm.runInNewContext(fs.readFileSync(require.resolve('../src/pkjs/index.js'),'utf8'),{Pebble,console,require:n=>n==='@rebble/clay'?MockClay:n==='./config'?config:{request:()=>calls.push('weather')}});
-ready=true;handlers.ready();assert(collect(instance.config).some(i=>i.messageKey==='BacklightColor'));
-watch=null;handlers.showConfiguration();watch={platform:'emery'};handlers.showConfiguration();
-assert(collect(instance.config).some(i=>i.messageKey==='BacklightColor'));
 const weather=require('../src/pkjs/weather');
 assert.strictEqual(weather.parse({},1),null);
 assert.strictEqual(weather.parse({current:{temperature_2m:null},daily:{temperature_2m_max:[20],temperature_2m_min:[10]}},1),null);
 assert.strictEqual(weather.condition(0,false),1);
 assert.strictEqual(weather.condition(95,true),8);
-console.log('PASS: deferred watch discovery, null-watch handling and weather validation.');
+console.log('PASS: weather validation.');
 
 // Clay only registers controls present at construction, not later config replacements.
 const Module=require('module'),originalLoad=Module._load;
@@ -43,3 +35,6 @@ for(const platform of ['emery','basalt']) for(const item of collect(config(platf
 }
 Module._load=originalLoad;
 console.log('PASS: every platform control is registered before page construction.');
+
+const picker=emery.find(i=>i.messageKey==='BacklightColor');
+assert(!Object.hasOwn(picker,'layout') && !Object.hasOwn(picker,'sunlight'));

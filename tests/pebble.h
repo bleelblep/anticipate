@@ -20,8 +20,8 @@ typedef int AccelAxisType;
 typedef struct { int charge_percent; bool is_charging, is_plugged; } BatteryChargeState;
 typedef struct { void (*load)(Window*); void (*unload)(Window*); } WindowHandlers;
 enum { TUPLE_CSTRING, TUPLE_INT, TUPLE_UINT };
-typedef union { char cstring[32]; int32_t int32; uint32_t uint32; } TupleValue;
-typedef struct { uint32_t key; int type; TupleValue *value; } Tuple;
+typedef union { char cstring[32]; int8_t int8; uint8_t uint8; int16_t int16; uint16_t uint16; int32_t int32; uint32_t uint32; } TupleValue;
+typedef struct { uint32_t key; int type; TupleValue *value; uint16_t length; } Tuple;
 typedef struct { Tuple *tuples; int count; } DictionaryIterator;
 enum { MESSAGE_KEY_BatteryMode, MESSAGE_KEY_BatterySeconds, MESSAGE_KEY_CustomBacklight,
  MESSAGE_KEY_BacklightRed, MESSAGE_KEY_BacklightGreen, MESSAGE_KEY_BacklightBlue,
@@ -64,7 +64,12 @@ void battery_state_service_unsubscribe(void);
 void app_focus_service_subscribe(void (*)(bool));
 void app_focus_service_unsubscribe(void);
 void app_message_register_inbox_received(void (*)(DictionaryIterator*,void*));
-void app_message_open(int,int);
+typedef int AppMessageResult;
+int app_message_open(int,int);
+void app_message_register_inbox_dropped(void (*)(AppMessageResult,void*));
+#define APP_LOG_LEVEL_ERROR 1
+#define APP_LOG_LEVEL_INFO 2
+#define APP_LOG(level,...) do { (void)(level); if(0) fprintf(stderr,__VA_ARGS__); } while(0)
 void app_message_deregister_callbacks(void);
 
 #define APP_MSG_OK 0

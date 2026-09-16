@@ -252,19 +252,31 @@ static void request_weather(void) {
 static int read_setting(int key,int fallback,int lo,int hi) {
   return persist_exists(key)?clamp(persist_read_int(key),lo,hi):fallback;
 }
+// AppMessage integers may occupy 1, 2 or 4 bytes, not always four.
+static bool tuple_number(const Tuple *tuple,int64_t *number) {
+  if(!tuple || (tuple->type!=TUPLE_INT && tuple->type!=TUPLE_UINT)) return false;
+  switch(tuple->length) {
+    case 1: *number=tuple->type==TUPLE_INT?(int64_t)tuple->value->int8:(int64_t)tuple->value->uint8;return true;
+    case 2: *number=tuple->type==TUPLE_INT?(int64_t)tuple->value->int16:(int64_t)tuple->value->uint16;return true;
+    case 4: *number=tuple->type==TUPLE_INT?(int64_t)tuple->value->int32:(int64_t)tuple->value->uint32;return true;
+    default:return false;
+  }
+}
 static void receive_setting(DictionaryIterator *iter,uint32_t key,int storage,
                             int *value,int lo,int hi) {
   Tuple *tuple=dict_find(iter,key);
   if(!tuple) return;
-  int n;
+  int64_t n;
   if(tuple->type==TUPLE_CSTRING) {
+    // Bound parsing even if a malformed string has no terminating NUL.
+    if(!tuple->length || tuple->length>12 ||
+       !memchr(tuple->value->cstring,0,tuple->length)) return;
     char *end; long parsed=strtol(tuple->value->cstring,&end,10);
     if(end==tuple->value->cstring || *end || parsed<lo || parsed>hi) return;
-    n=(int)parsed;
-  } else if(tuple->type==TUPLE_INT) n=clamp(tuple->value->int32,lo,hi);
-  else if(tuple->type==TUPLE_UINT) n=tuple->value->uint32>(uint32_t)hi?hi:clamp((int)tuple->value->uint32,lo,hi);
-  else return;
-  *value=n; persist_write_int(storage,n);
+    n=parsed;
+  } else if(!tuple_number(tuple,&n)) return;
+  n=n<lo?lo:(n>hi?hi:n);
+  *value=(int)n; persist_write_int(storage,(int)n);
 }
 static void inbox(DictionaryIterator *iter,void *context) {
   (void)context;
@@ -274,8 +286,9 @@ static void inbox(DictionaryIterator *iter,void *context) {
     int values[5];bool valid=true;
     for(int i=0;i<5;i++) {
       Tuple *t=dict_find(iter,keys[i]);
-      if(!t || (t->type!=TUPLE_INT && t->type!=TUPLE_UINT)) {valid=false;break;}
-      values[i]=t->type==TUPLE_INT?t->value->int32:(int)t->value->uint32;
+      int64_t n;
+      if(!tuple_number(t,&n) || n<INT32_MIN || n>INT32_MAX) {valid=false;break;}
+      values[i]=(int)n;
       if(i<3 && (values[i]<-100 || values[i]>100)) valid=false;
     }
     if(valid && values[3]>=-1 && values[3]<10 && values[4]>0) {
@@ -310,7 +323,12 @@ static void inbox(DictionaryIterator *iter,void *context) {
        dict_find(iter,MESSAGE_KEY_BacklightGreen) || dict_find(iter,MESSAGE_KEY_BacklightBlue)) light_enable_interaction();
 #endif
   }
+  APP_LOG(APP_LOG_LEVEL_INFO,"Settings applied: style=%d mode=%d RGB=%d/%d/%d enabled=%d",
+          s_style,s_mode,s_red,s_green,s_blue,s_custom_light);
   request_weather();dirty();
+}
+static void inbox_dropped(AppMessageResult reason,void *context) {
+  (void)context;APP_LOG(APP_LOG_LEVEL_ERROR,"AppMessage dropped: %d",reason);
 }
 static void window_load(Window *window) {
   Layer *root=window_get_root_layer(window); GRect bounds=layer_get_bounds(root);
@@ -341,7 +359,10 @@ int main(void) {
   tick_timer_service_subscribe(MINUTE_UNIT,tick);
   battery_state_service_subscribe(battery_changed);
   app_focus_service_subscribe(focus_changed);
-  app_message_register_inbox_received(inbox); app_message_open(256,64);
+  app_message_register_inbox_received(inbox);
+  app_message_register_inbox_dropped(inbox_dropped);
+  AppMessageResult opened=app_message_open(512,64);
+  if(opened!=APP_MSG_OK) APP_LOG(APP_LOG_LEVEL_ERROR,"AppMessage open failed: %d",opened);
 #ifdef PBL_RGB_BACKLIGHT
   backlight_service_subscribe(backlight_changed);
 #endif

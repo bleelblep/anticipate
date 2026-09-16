@@ -10,3 +10,5 @@ for platform in normal emery; do
 done
 node tests/config_test.js
 node tests/weather_location_test.js
+
+node tests/settings_delivery_test.js

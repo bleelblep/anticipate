@@ -45,11 +45,11 @@ Tuple *dict_find(DictionaryIterator *it,uint32_t key) {
  return NULL;
 }
 static void send_int(uint32_t key,int value) {
- TupleValue v={.int32=value};Tuple t={key,TUPLE_INT,&v};DictionaryIterator it={&t,1};inbox(&it,NULL);
+ TupleValue v={.int32=value};Tuple t={key,TUPLE_INT,&v,4};DictionaryIterator it={&t,1};inbox(&it,NULL);
 }
 static void send_string(uint32_t key,const char *value) {
  TupleValue v;snprintf(v.cstring,sizeof(v.cstring),"%s",value);
- Tuple t={key,TUPLE_CSTRING,&v};DictionaryIterator it={&t,1};inbox(&it,NULL);
+ Tuple t={key,TUPLE_CSTRING,&v,(uint16_t)(strlen(v.cstring)+1)};DictionaryIterator it={&t,1};inbox(&it,NULL);
 }
 int app_message_outbox_begin(DictionaryIterator **it) { *it=NULL;return 1; }
 int app_message_outbox_send(void) { return 0; }
@@ -66,6 +66,13 @@ int main(void) {
   }
  }
  s_style=0;
+ // Dirty trailing bytes make accidental four-byte reads observable.
+ TupleValue short_value;memset(&short_value,0x7f,sizeof(short_value));short_value.uint8=1;
+ Tuple short_tuple={MESSAGE_KEY_TimeStyle,TUPLE_UINT,&short_value,1};
+ DictionaryIterator short_dict={&short_tuple,1};inbox(&short_dict,NULL);assert(s_style==1);
+ short_value.uint16=2;short_tuple.length=2;inbox(&short_dict,NULL);assert(s_style==2);
+ short_tuple.length=3;short_value.uint32=0;inbox(&short_dict,NULL);assert(s_style==2);
+ send_string(MESSAGE_KEY_TimeStyle,"0");assert(s_style==0);
  for(s_percent=0;s_percent<=100;s_percent++)
   for(s_progress=0;s_progress<=1000;s_progress+=10) draw(NULL,NULL);
  s_percent=75;s_progress=0;s_mode=MODE_FLICK;subscribe_motion();assert(subscribed);
@@ -105,7 +112,7 @@ int main(void) {
  AppTimer *hold=s_hide_timer;int preview_count=previews;
  TupleValue vals[5]={{.int32=25},{.int32=20},{.int32=12},{.int32=0},{.int32=(int)time(NULL)}};
  uint32_t keys[5]={MESSAGE_KEY_TEMP_HI,MESSAGE_KEY_TEMP_CUR,MESSAGE_KEY_TEMP_LO,MESSAGE_KEY_CONDITIONS,MESSAGE_KEY_WEATHER_AT};
- Tuple tuples[5];for(int i=0;i<5;i++) tuples[i]=(Tuple){keys[i],TUPLE_INT,&vals[i]};
+ Tuple tuples[5];for(int i=0;i<5;i++) tuples[i]=(Tuple){keys[i],TUPLE_INT,&vals[i],4};
  DictionaryIterator weather={tuples,5};inbox(&weather,NULL);
  assert(s_progress==1000 && s_hide_timer==hold && previews==preview_count && s_weather[1]==20);
  s_hour=12;s_minute=34;s_date.tm_mday=16;s_date.tm_mon=8;s_date.tm_wday=3;s_percent=75;s_progress=1000;draw(NULL,NULL);

@@ -1,5 +1,6 @@
 // Open-Meteo values are cached in Celsius; the watch applies the user's unit.
 var busy = false;
+var transport=require('./transport');
 var CACHE = 'anticipate-column-weather-v1';
 function condition(code, day) {
   if (code === 0) return day ? 0 : 1;
@@ -28,9 +29,10 @@ function request(force) {
   var now=Math.floor(Date.now()/1000), cache;
   try {cache=JSON.parse(localStorage.getItem(CACHE));} catch(e) {cache=null;}
   if (!force && cache && cache.locationKey===locationKey && now>=cache.WEATHER_AT && now-cache.WEATHER_AT<1800) {
-    delete cache.locationKey;Pebble.sendAppMessage(cache); return;
+    delete cache.locationKey;transport.send('Weather',cache); return;
   }
   busy=true;
+  try {
   function forecast(pos) {
     var xhr=new XMLHttpRequest();
     xhr.open('GET','https://api.open-meteo.com/v1/forecast?latitude='+pos.coords.latitude+
@@ -42,7 +44,7 @@ function request(force) {
       if(xhr.status!==200) return;
       try {
         var data=parse(JSON.parse(xhr.responseText),Math.floor(Date.now()/1000));
-        if(data) {localStorage.setItem(CACHE,JSON.stringify(Object.assign({locationKey:locationKey},data)));Pebble.sendAppMessage(data);}
+        if(data) {localStorage.setItem(CACHE,JSON.stringify(Object.assign({locationKey:locationKey},data)));transport.send('Weather',data);}
       } catch(e) {console.log('Weather response unavailable');}
     };
     xhr.onerror=xhr.ontimeout=function() {busy=false;};
@@ -63,5 +65,6 @@ function request(force) {
     };
     geo.send();
   } else navigator.geolocation.getCurrentPosition(forecast,function() {busy=false;},{timeout:15000,maximumAge:60000});
+  } catch(error) {busy=false;console.log('Weather request failed: '+String(error));}
 }
 module.exports={request:request,parse:parse,condition:condition};

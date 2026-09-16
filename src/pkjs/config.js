@@ -1,13 +1,4 @@
 module.exports = function(platform) {
-  var palette=[];
-  for(var r=0;r<4;r++) for(var g=0;g<4;g++) {
-    var row=[];
-    for(var b=0;b<4;b++) row.push((r*85<<16)|(g*85<<8)|b*85);
-    palette.push(row);
-  }
-  // Eight columns retain all 64 Pebble colours with larger touch targets.
-  var grid=[];
-  for(var i=0;i<palette.length;i+=2) grid.push(palette[i].concat(palette[i+1]));
   var config = [
     {type: 'heading', defaultValue: 'Anticipate'},
     {type: 'section', items: [{type: 'select', messageKey: 'TimeStyle', label: 'Time numerals', defaultValue: '0', options: [
@@ -42,7 +33,7 @@ module.exports = function(platform) {
     config.push({type: 'section', items: [
       {type: 'heading', defaultValue: 'Pebble Time 2 backlight'},
       {type: 'toggle', messageKey: 'CustomBacklight', label: 'Use custom RGB backlight', defaultValue: false},
-      {type: 'color', messageKey: 'BacklightColor', label: 'Backlight colour', defaultValue: 'ffffff', sunlight: false, layout: grid},
+      {type: 'color', messageKey: 'BacklightColor', label: 'Backlight colour', defaultValue: 'ffffff'},
       {type: 'text', defaultValue: 'Saving previews the backlight colour briefly. Your watch still controls brightness and how long the light stays on. All channels at zero gives no coloured light.'}
     ]});
   }

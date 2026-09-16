@@ -52,7 +52,8 @@ require Time 2 firmware exposing `light_set_color_rgb888`,
 
 Run `sh tests/run.sh` for host-side regression tests: three numeral styles,
 all times, all battery percentages, animation bounds/reversal, repeated flicks,
-settings, weather delivery during reveal, and deferred watch discovery.
+settings, weather delivery during reveal, integer tuple widths, and real bundled Clay
+Save/transport tests (offline, with simulated location failures and send retries).
 Physical wrist detection, backlight colours and animation performance still
 need verification on a real watch.
 
@@ -60,3 +61,22 @@ Generated artwork can be rebuilt with Pillow:
 - `python tools/generate_time_digits.py`
 - `python tools/generate_column.py`
 - `python tools/generate_alt_digits.py`
+
+## 1.5.0 reliability fixes
+
+Restores the stock Rebble Clay colour picker, with no custom palette or CSS.
+Settings and weather share a serialized AppMessage queue with three delivery
+attempts. Saved preferences are resent when PebbleKit JS starts. Weather/location
+exceptions no longer block saving preferences. Watch numeric tuples are decoded
+according to their actual byte length, and malformed strings are rejected before
+parsing. Watch logs report applied styles/colours and dropped messages.
+
+Validation: SDK build for all five platforms; bundled JavaScript transport tests;
+host C regression tests. Hardware RGB and the reported intermittent crash remain
+unverified. The tuple-width bug and location-exception path are reproduced defects,
+not a confirmed diagnosis of the user's physical-watch crash.
+
+RGB implementation reference inspected:
+https://github.com/brooks2564/rgb-backlight-test/blob/master/src/c/main.c
+The RGB packing already matches that reference. This watchface keeps the normal
+backlight timeout rather than the test app's continuously enabled light.
