@@ -15,7 +15,13 @@ function requestWeather(force) {
 function sendSettings(raw) {
   // Keep location on the phone and send only known watch preferences.
   var allowed=['TimeStyle','BatteryMode','BatterySeconds','CustomBacklight',
-    'BacklightRed','BacklightGreen','BacklightBlue','BacklightColor','DateMonthFirst','Fahrenheit'];
+    'BacklightRed','BacklightGreen','BacklightBlue','BacklightColor','DateFormat','Fahrenheit',
+    'BackgroundColor','DigitColor','DetailColor'];
+  // Carry the old "month before day" toggle over until a date format is saved.
+  if(!Object.prototype.hasOwnProperty.call(raw,'DateFormat') && Object.prototype.hasOwnProperty.call(raw,'DateMonthFirst')) {
+    var first=raw.DateMonthFirst;
+    raw.DateFormat=(first && typeof first==='object' ? first.value : first) ? '1' : '0';
+  }
   var filtered={};
   allowed.forEach(function(key){if(Object.prototype.hasOwnProperty.call(raw,key)) filtered[key]=raw[key];});
   var settings=Clay.prepareSettingsForAppMessage(filtered);

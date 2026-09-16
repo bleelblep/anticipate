@@ -12,3 +12,7 @@ The derived alt_digits.h is generated with tools/generate_alt_digits.py.
 These works are combined and distributed under GPL-2.0, with the compatible
 MIT notices retained. GPL-2.0.txt contains the complete license. Corresponding
 source and build instructions are provided in this repository.
+
+Big LCD numeral artwork: Dalpek, from the Big-LCD watchface (NUM_0-NUM_9 tiles
+via the Big-LCD Plus fork). The original tiles are included under
+resources/biglcd; lcd_digits.h is generated with tools/generate_lcd_digits.py.

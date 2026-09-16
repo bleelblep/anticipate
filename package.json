@@ -46,7 +46,11 @@
       "REQUEST_WEATHER",
       "BacklightColor",
       "WeatherGPS",
-      "WeatherLocation"
+      "WeatherLocation",
+      "DateFormat",
+      "BackgroundColor",
+      "DigitColor",
+      "DetailColor"
     ],
     "resources": {
       "media": [

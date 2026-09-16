@@ -2,7 +2,8 @@ module.exports = function(platform) {
   var config = [
     {type: 'heading', defaultValue: 'Anticipate'},
     {type: 'section', items: [{type: 'select', messageKey: 'TimeStyle', label: 'Time numerals', defaultValue: '0', options: [
-      {label: 'Anticipate', value: '0'}, {label: 'Naive — ir33k', value: '1'}, {label: 'Brutal — ir33k', value: '2'}
+      {label: 'Anticipate', value: '0'}, {label: 'Naive — ir33k', value: '1'}, {label: 'Brutal — ir33k', value: '2'},
+      {label: 'Big LCD — Dalpek', value: '3'}
     ]}]},
     {type: 'section', items: [
       {type: 'heading', defaultValue: 'Shake-to-show details'},
@@ -20,7 +21,10 @@ module.exports = function(platform) {
   ];
   config.push({type: 'section', items: [
     {type: 'heading', defaultValue: 'Date and weather'},
-    {type: 'toggle', messageKey: 'DateMonthFirst', label: 'Month before day', defaultValue: false},
+    {type: 'select', messageKey: 'DateFormat', label: 'Date', defaultValue: '0', options: [
+      {label: 'Day-month (17-09)', value: '0'}, {label: 'Month-day (09-17)', value: '1'},
+      {label: 'Day only (17)', value: '2'}, {label: 'Month only (09)', value: '3'}
+    ]},
     {type: 'toggle', messageKey: 'Fahrenheit', label: 'Use Fahrenheit', defaultValue: false}
   ]});
   config.push({type: 'section', items: [
@@ -29,6 +33,16 @@ module.exports = function(platform) {
     {type: 'input', messageKey: 'WeatherLocation', label: 'City or postal code', defaultValue: '', attributes: {type: 'text', placeholder: 'London, UK'}},
     {type: 'text', defaultValue: 'Turn off phone location to use the city above. Include a country or state to distinguish places with the same name.'}
   ]});
+  // Black-and-white watches (diorite, flint) always use the original monochrome look.
+  if (platform !== 'diorite' && platform !== 'flint' && platform !== 'aplite') {
+    config.push({type: 'section', items: [
+      {type: 'heading', defaultValue: 'Colours'},
+      {type: 'color', messageKey: 'BackgroundColor', label: 'Background', defaultValue: '000000'},
+      {type: 'color', messageKey: 'DigitColor', label: 'Time digits', defaultValue: 'ffffff'},
+      {type: 'color', messageKey: 'DetailColor', label: 'Date, weather and battery', defaultValue: 'ffffff'},
+      {type: 'text', defaultValue: 'Text inside the white pills uses the background colour.'}
+    ]});
+  }
   if (platform === 'emery') {
     config.push({type: 'section', items: [
       {type: 'heading', defaultValue: 'Pebble Time 2 backlight'},
