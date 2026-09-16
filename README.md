@@ -1,51 +1,25 @@
-![Anticipate](metadata/banner/banner-img-dark-align-face-flat.png)
+# Anticipate — time only
 
-## Description
+A time-only modification of [Anticipate by Unruh Bros. Print Co.](https://github.com/unruh-bros-print-co/anticipate).
 
-There's a time for everything! Here's a clean yet informative watch face that finds a balance between being present and being prepared.
+Keeps the original stacked numeral artwork, right alignment, leading zeros,
+and the watch's 12/24-hour preference. The face retains its centred 144 × 168
+composition on every supported platform, including the original outer margins
+on larger screens. Digits expand into the removed left-hand complications and
+bottom timeline, with a four-pixel inset and four-pixel gaps. Each full-width
+digit is now 66 × 78 rather than 46 × 71.
 
-Live in the moment while you anticipate the day ahead!
+Date, steps, weather, seconds, timeline, phone configuration, location access,
+and motion handling have been removed. The display updates once per minute.
 
-Ecclesiastes 3:1-8
+`src/c/time_digits.h` encodes the original numeral PNGs as monochrome rows.
+To regenerate it, install Pillow and run `python tools/generate_time_digits.py`.
+The watch draws scaled pixel runs directly, preserving crisp edges.
 
-## Features
+Supported platforms: basalt, diorite, flint, emery, gabbro.
 
-- Today's date
-- Step count
-- Temperature (high)
-- Temperature (current)
-- Temperature (low)
-- Current weather conditions
-- Day/night timeline
-  - Sunrise/sunset
-  - Day/night
-  - Current moment of day
-- 12h and 24h time format support
-- Seconds display
+Validation: layout bounds and numeral encoding checked locally. A Pebble SDK
+build and emulator/device verification are still required; the SDK was not
+available in the editing environment.
 
-## Settings Options
-
-- Date format (DD-MM or MM-DD)
-- Leading zero on main time (show or hide)
-- Seconds display (off, on, or temporary on motion)
-- Temperature unit (Celsius or Fahrenheit)
-- Update weather data interval
-- Update weather data on motion toggle
-- Leading zero on sunrise/sunset time labels (show or hide)
-- Vibrate on motion toggle
-
-Weather data by Open-Meteo
-
-## Supported Platforms
-
-- basalt
-- diorite
-- flint
-- emery
-- gabbro
-
-## Installation
-
-1. Ensure the Pebble SDK is installed.
-2. Run `pebble build`.
-3. Run `pebble install --emulator {platform-name}`.
+Original license and artwork attribution are retained in LICENSE.
