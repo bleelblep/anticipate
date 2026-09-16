@@ -268,11 +268,16 @@ static void receive_setting(DictionaryIterator *iter,uint32_t key,int storage,
   if(!tuple) return;
   int64_t n;
   if(tuple->type==TUPLE_CSTRING) {
-    // Bound parsing even if a malformed string has no terminating NUL.
-    if(!tuple->length || tuple->length>12 ||
-       !memchr(tuple->value->cstring,0,tuple->length)) return;
-    char *end; long parsed=strtol(tuple->value->cstring,&end,10);
-    if(end==tuple->value->cstring || *end || parsed<lo || parsed>hi) return;
+    // Parse by hand: newlib strtol reads an unrelocated global and faults on watch.
+    const char *s=tuple->value->cstring; uint16_t len=tuple->length;
+    if(!len || len>12) return;
+    uint16_t i=0; bool neg=false; long parsed=0;
+    if(s[i]=='-') {neg=true;i++;}
+    if(i>=len || s[i]<'0' || s[i]>'9') return;
+    for(;i<len && s[i]>='0' && s[i]<='9';i++) parsed=parsed*10+(s[i]-'0');
+    if(i>=len || s[i]!='\0') return;
+    if(neg) parsed=-parsed;
+    if(parsed<lo || parsed>hi) return;
     n=parsed;
   } else if(!tuple_number(tuple,&n)) return;
   n=n<lo?lo:(n>hi?hi:n);
