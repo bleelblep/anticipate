@@ -1,6 +1,8 @@
 #include <pebble.h>
 #include <stdlib.h>
 #include "time_digits.h"
+#include "column_sprites.h"
+#include "alt_digits.h"
 
 // Both states retain the original centred 144x168 footprint and four-pixel inset.
 enum { FACE_WIDTH=144, FACE_HEIGHT=168, RIGHT=140, BOTTOM=164,
@@ -9,6 +11,11 @@ static Window *s_window;
 static Layer *s_layer;
 static AppTimer *s_frame_timer, *s_hide_timer;
 static int s_hour, s_minute, s_percent;
+static int s_style, s_month_first, s_fahrenheit;
+static struct tm s_date;
+static int s_weather[5]={0,0,0,-1,0}; // high, current, low, condition, timestamp
+static time_t s_last_request;
+static void request_weather(void);
 static int s_progress, s_start, s_target, s_frame;
 static int s_mode=MODE_FLICK, s_seconds=5, s_red=255, s_green=255, s_blue=255;
 static bool s_custom_light, s_focused=true, s_tap_subscribed;
@@ -19,37 +26,119 @@ static void cancel_timer(AppTimer **timer) {
   if(*timer) { app_timer_cancel(*timer); *timer=NULL; }
 }
 static void apply_light(void) {
-#ifdef PBL_PLATFORM_EMERY
+#ifdef PBL_RGB_BACKLIGHT
   if(s_custom_light) light_set_color_rgb888(((uint32_t)s_red<<16)|((uint32_t)s_green<<8)|s_blue);
   else light_set_system_color();
 #endif
 }
+#ifdef PBL_RGB_BACKLIGHT
+static void backlight_changed(bool on) { if(on && s_focused) apply_light(); }
+#endif
 // Explicit clipping prevents sliding content touching the original outer margins.
 static void rect(GContext *ctx,int x,int y,int w,int h) {
   int right=clamp(x+w,4,RIGHT), bottom=clamp(y+h,4,BOTTOM);
   x=clamp(x,4,RIGHT); y=clamp(y,4,BOTTOM);
   if(right>x && bottom>y) graphics_fill_rect(ctx,GRect(x,y,right-x,bottom-y),0,GCornerNone);
 }
-static bool digit_pixel(int digit,int x,int y) {
-  return (DIGIT_ROWS[digit][y][x/8] & (1<<(x%8)))!=0;
+static const ColumnSprite *alt_digit(int digit,int y) {
+  if(s_style==1) return y==4?naive_hours_digits[digit]:naive_minutes_digits[digit];
+  return brutal_digits[digit];
+}
+static int digit_width(int digit,int y) {
+  return s_style?alt_digit(digit,y)->w:DIGIT_WIDTHS[digit];
 }
 static void draw_digit(GContext *ctx,int digit,int x,int y,int w,int h) {
-  for(int sy=0;sy<71;sy++) {
-    int top=y+sy*h/71, bottom=y+(sy+1)*h/71;
-    for(int sx=0;sx<DIGIT_WIDTHS[digit];) {
-      if(!digit_pixel(digit,sx,sy)) { sx++; continue; }
+  const ColumnSprite *alt=s_style?alt_digit(digit,y):NULL;
+  int source_w=alt?60:46, source_h=alt?alt->h:71;
+  int width=alt?alt->w:DIGIT_WIDTHS[digit], stride=alt?alt->stride:6;
+  const uint8_t *bits=alt?alt->bits:&DIGIT_ROWS[digit][0][0];
+  for(int sy=0;sy<source_h;sy++) {
+    int top=y+sy*h/source_h, bottom=y+(sy+1)*h/source_h;
+    for(int sx=0;sx<width;) {
+      if(!(bits[sy*stride+sx/8] & (1<<(sx%8)))) {sx++;continue;}
       int start=sx;
-      while(sx<DIGIT_WIDTHS[digit] && digit_pixel(digit,sx,sy)) sx++;
-      int left=x+start*w/46, right=x+sx*w/46;
+      while(sx<width && (bits[sy*stride+sx/8] & (1<<(sx%8)))) sx++;
+      int left=x+start*w/source_w, right=x+sx*w/source_w;
       rect(ctx,left,top,right-left,bottom-top);
     }
   }
 }
 static void draw_pair(GContext *ctx,int value,int y,int w,int h) {
-  int ones=value%10, tens=value/10;
-  int ones_x=RIGHT-DIGIT_WIDTHS[ones]*w/46;
+  int ones=value%10,tens=value/10,source_w=s_style?60:46;
+  int ones_x=RIGHT-digit_width(ones,y)*w/source_w;
   draw_digit(ctx,ones,ones_x,y,w,h);
-  draw_digit(ctx,tens,ones_x-4-DIGIT_WIDTHS[tens]*w/46,y,w,h);
+  draw_digit(ctx,tens,ones_x-4-digit_width(tens,y)*w/source_w,y,w,h);
+}
+static void sprite(GContext *ctx,const ColumnSprite *im,int x,int y) {
+  for(int sy=0;sy<im->h;sy++) for(int sx=0;sx<im->w;) {
+    if(!(im->bits[sy*im->stride+sx/8] & (1<<(sx%8)))) {sx++;continue;}
+    int start=sx;
+    while(sx<im->w && (im->bits[sy*im->stride+sx/8] & (1<<(sx%8)))) sx++;
+    rect(ctx,x+start,y+sy,sx-start,1);
+  }
+}
+static int glyph_index(char c) { return c=='-'?10:(c=='*'?11:c-'0'); }
+static void column_text(GContext *ctx,const char *str,int x,int y,bool large) {
+  const ColumnSprite *const *font=large?s_sprites:xs_sprites;
+  int width=0;
+  for(const char *c=str;*c;c++) width+=font[glyph_index(*c)]->w+1;
+  int limit=36;
+  // Scale very long step counts/temperatures into the original 36px column.
+  int actual=width?width-1:0, fit=actual>limit?limit:actual;
+  int pen=0,origin=x+(limit-fit)/2;
+  for(const char *c=str;*c;c++) {
+    const ColumnSprite *im=font[glyph_index(*c)];
+    for(int sy=0;sy<im->h;sy++) for(int sx=0;sx<im->w;sx++) {
+      if(!(im->bits[sy*im->stride+sx/8] & (1<<(sx%8)))) continue;
+      int left=(pen+sx)*fit/actual,right=(pen+sx+1)*fit/actual;
+      rect(ctx,origin+left,y+sy,right-left,1);
+    }
+    pen+=im->w+1;
+  }
+}
+static bool weather_fresh(void) {
+  time_t now=time(NULL);return s_weather[4]>0 && now>=s_weather[4] && now-s_weather[4]<10800;
+}
+// Compact 5x7 weekday lettering, drawn inside the original white pill.
+static void draw_weekday(GContext *ctx,int x,int y) {
+  static const char alphabet[]="MON TUEWDHFRISA";
+  static const uint8_t rows[][7]={
+    {17,27,21,21,17,17,17}, {14,17,17,17,17,17,14},
+    {17,25,25,21,19,19,17}, {0,0,0,0,0,0,0},
+    {31,4,4,4,4,4,4}, {17,17,17,17,17,17,14},
+    {31,16,16,30,16,16,31}, {17,17,17,21,21,27,17},
+    {30,17,17,17,17,17,30}, {17,17,17,31,17,17,17},
+    {31,16,16,30,16,16,16}, {30,17,17,30,20,18,17},
+    {31,4,4,4,4,4,31}, {15,16,16,14,1,1,30},
+    {14,17,17,31,17,17,17}
+  };
+  static const char *const days[]={"SUN","MON","TUE","WED","THU","FRI","SAT"};
+  const char *day=days[clamp(s_date.tm_wday,0,6)];
+  for(int i=0;i<3;i++) {
+    const char *letter=strchr(alphabet,day[i]);
+    if(!letter) continue;
+    int index=(int)(letter-alphabet);
+    for(int row=0;row<7;row++) for(int col=0;col<5;col++)
+      if(rows[index][row] & (1<<(4-col))) rect(ctx,x+8+i*7+col,y+row,1,1);
+  }
+}
+static void draw_column(GContext *ctx) {
+  int x=4-40*(1000-s_progress)/1000;
+  sprite(ctx,&sprite_background,x,4);
+  char buf[16];
+  strftime(buf,sizeof(buf),s_month_first?"%m-%d":"%d-%m",&s_date);
+  column_text(ctx,buf,x,10,false);
+  graphics_context_set_fill_color(ctx,GColorBlack);
+  draw_weekday(ctx,x,36);
+  for(int i=0;i<3;i++) {
+    graphics_context_set_fill_color(ctx,i==1?GColorBlack:GColorWhite);
+    if(!weather_fresh()) strcpy(buf,"--*");
+    else snprintf(buf,sizeof(buf),"%d*",s_fahrenheit?s_weather[i]*9/5+32:s_weather[i]);
+    column_text(ctx,buf,x,58+25*i,true);
+  }
+  graphics_context_set_fill_color(ctx,GColorWhite);
+  if(weather_fresh() && s_weather[3]>=0 && s_weather[3]<10) sprite(ctx,condition_sprites[s_weather[3]],x,128);
+  else column_text(ctx,"--",x,141,false);
 }
 // A compact 3x5 pixel alphabet for the gauge's small labels (last glyph is %).
 static const uint8_t SMALL[11][5]={
@@ -67,27 +156,29 @@ static void small_text(GContext *ctx,const char *s,int x,int y) {
 }
 static void draw_battery(GContext *ctx,int top) {
   // Track spans x=4..139; marker follows the fill boundary, including 0/100%.
-  rect(ctx,4,top,136,1); rect(ctx,4,top+3,136,1);
-  rect(ctx,4,top,1,4); rect(ctx,139,top,1,4);
-  int fill=134*s_percent/100, marker=clamp(5+fill,4,139);
-  rect(ctx,5,top+1,fill,2);
+  int left=4+40*s_progress/1000, span=RIGHT-left;
+  rect(ctx,left,top,span,1); rect(ctx,left,top+3,span,1);
+  rect(ctx,left,top,1,4); rect(ctx,139,top,1,4);
+  int fill=(span-2)*s_percent/100, marker=clamp(left+1+fill,left,139);
+  rect(ctx,left+1,top+1,fill,2);
   // Upward triangle below the track, with one clear row between them.
   rect(ctx,marker,top+5,1,1);
   rect(ctx,marker-1,top+6,3,1);
   rect(ctx,marker-2,top+7,5,1);
   char label[5]; snprintf(label,sizeof(label),"%d%%",s_percent);
   int width=(int)strlen(label)*4-1;
-  int label_x=clamp(marker-width/2,4,RIGHT-width);
+  int label_x=clamp(marker-width/2,left,RIGHT-width);
   small_text(ctx,label,label_x,top+10);
   // Near endpoints, the percentage itself replaces the endpoint label.
-  if(label_x>11) small_text(ctx,"0",4,top+10);
+  if(label_x>left+7) small_text(ctx,"0",left,top+10);
   if(label_x+width<125) small_text(ctx,"100",129,top+10);
 }
 static void draw(Layer *layer,GContext *ctx) {
   graphics_context_set_fill_color(ctx,GColorBlack);
   graphics_fill_rect(ctx,layer_get_bounds(layer),0,GCornerNone);
   graphics_context_set_fill_color(ctx,GColorWhite);
-  int w=66-10*s_progress/1000, h=78-12*s_progress/1000;
+  int w=66-20*s_progress/1000, h=78-12*s_progress/1000;
+  if(s_progress) draw_column(ctx);
   draw_pair(ctx,s_hour,4,w,h); draw_pair(ctx,s_minute,8+h,w,h);
   if(s_progress) draw_battery(ctx,169-24*s_progress/1000);
 }
@@ -119,6 +210,7 @@ static void wrist_flick(AccelAxisType axis,int32_t direction) {
   (void)axis; (void)direction;
   if(!s_focused || s_mode!=MODE_FLICK) return;
   cancel_timer(&s_hide_timer);
+  request_weather(); apply_light();
   transition(true);
   // Restart the hold interval on another flick. Include the reveal duration.
   s_hide_timer=app_timer_register(s_seconds*1000+FRAME_MS*FRAMES,hide_battery,NULL);
@@ -141,9 +233,20 @@ static void battery_changed(BatteryChargeState state) {
   s_percent=clamp(state.charge_percent,0,100); dirty();
 }
 static void tick(struct tm *t,TimeUnits changed) {
-  (void)changed; s_hour=t->tm_hour;
+  (void)changed; s_date=*t; s_hour=t->tm_hour;
   if(!clock_is_24h_style()) { s_hour%=12; if(!s_hour) s_hour=12; }
-  s_minute=t->tm_min; dirty();
+  s_minute=t->tm_min;
+  if(s_mode!=MODE_OFF) {request_weather();}
+  dirty();
+}
+static void request_weather(void) {
+  time_t now=time(NULL);
+  if(s_last_request && now>=s_last_request && now-s_last_request<60) return;
+  if(weather_fresh() && now-s_weather[4]<1800) return;
+  DictionaryIterator *it;
+  if(app_message_outbox_begin(&it)!=APP_MSG_OK || !it) return;
+  dict_write_uint8(it,MESSAGE_KEY_REQUEST_WEATHER,1);
+  if(app_message_outbox_send()==APP_MSG_OK) s_last_request=now;
 }
 // Independent persistence keys avoid interpreting the upstream settings struct.
 static int read_setting(int key,int fallback,int lo,int hi) {
@@ -165,6 +268,25 @@ static void receive_setting(DictionaryIterator *iter,uint32_t key,int storage,
 }
 static void inbox(DictionaryIterator *iter,void *context) {
   (void)context;
+  Tuple *at=dict_find(iter,MESSAGE_KEY_WEATHER_AT);
+  if(at) {
+    const uint32_t keys[]={MESSAGE_KEY_TEMP_HI,MESSAGE_KEY_TEMP_CUR,MESSAGE_KEY_TEMP_LO,MESSAGE_KEY_CONDITIONS,MESSAGE_KEY_WEATHER_AT};
+    int values[5];bool valid=true;
+    for(int i=0;i<5;i++) {
+      Tuple *t=dict_find(iter,keys[i]);
+      if(!t || (t->type!=TUPLE_INT && t->type!=TUPLE_UINT)) {valid=false;break;}
+      values[i]=t->type==TUPLE_INT?t->value->int32:(int)t->value->uint32;
+      if(i<3 && (values[i]<-100 || values[i]>100)) valid=false;
+    }
+    if(valid && values[3]>=-1 && values[3]<10 && values[4]>0) {
+      memcpy(s_weather,values,sizeof(values));persist_write_data(120,s_weather,sizeof(s_weather));dirty();
+    }
+    // Weather updates must never cancel an active reveal or preview the light.
+    return;
+  }
+  receive_setting(iter,MESSAGE_KEY_TimeStyle,109,&s_style,0,2);
+  receive_setting(iter,MESSAGE_KEY_DateMonthFirst,107,&s_month_first,0,1);
+  receive_setting(iter,MESSAGE_KEY_Fahrenheit,108,&s_fahrenheit,0,1);
   receive_setting(iter,MESSAGE_KEY_BatteryMode,101,&s_mode,0,2);
   receive_setting(iter,MESSAGE_KEY_BatterySeconds,102,&s_seconds,2,30);
   int enabled=s_custom_light;
@@ -175,7 +297,14 @@ static void inbox(DictionaryIterator *iter,void *context) {
   receive_setting(iter,MESSAGE_KEY_BacklightBlue,106,&s_blue,0,255);
   cancel_timer(&s_hide_timer); subscribe_motion();
   transition(s_mode==MODE_ALWAYS);
-  if(s_focused) apply_light();
+  if(s_focused) {
+    apply_light();
+#ifdef PBL_RGB_BACKLIGHT
+    if(dict_find(iter,MESSAGE_KEY_CustomBacklight) || dict_find(iter,MESSAGE_KEY_BacklightRed) ||
+       dict_find(iter,MESSAGE_KEY_BacklightGreen) || dict_find(iter,MESSAGE_KEY_BacklightBlue)) light_enable_interaction();
+#endif
+  }
+  request_weather();dirty();
 }
 static void window_load(Window *window) {
   Layer *root=window_get_root_layer(window); GRect bounds=layer_get_bounds(root);
@@ -191,6 +320,8 @@ static void window_unload(Window *window) {
   s_layer=NULL;
 }
 int main(void) {
+  s_style=read_setting(109,0,0,2);s_month_first=read_setting(107,0,0,1);s_fahrenheit=read_setting(108,0,0,1);
+  if(persist_get_size(120)==sizeof(s_weather)) persist_read_data(120,s_weather,sizeof(s_weather));
   s_mode=read_setting(101,MODE_FLICK,0,2); s_seconds=read_setting(102,5,2,30);
   s_custom_light=read_setting(103,0,0,1)!=0;
   s_red=read_setting(104,255,0,255); s_green=read_setting(105,255,0,255);
@@ -205,13 +336,16 @@ int main(void) {
   battery_state_service_subscribe(battery_changed);
   app_focus_service_subscribe(focus_changed);
   app_message_register_inbox_received(inbox); app_message_open(256,64);
+#ifdef PBL_RGB_BACKLIGHT
+  backlight_service_subscribe(backlight_changed);
+#endif
   subscribe_motion(); apply_light(); app_event_loop();
   cancel_timer(&s_frame_timer); cancel_timer(&s_hide_timer);
   if(s_tap_subscribed) accel_tap_service_unsubscribe();
   battery_state_service_unsubscribe(); app_focus_service_unsubscribe();
   tick_timer_service_unsubscribe(); app_message_deregister_callbacks();
-#ifdef PBL_PLATFORM_EMERY
-  light_set_system_color();
+#ifdef PBL_RGB_BACKLIGHT
+  backlight_service_unsubscribe();light_set_system_color();
 #endif
   window_destroy(s_window); return 0;
 }

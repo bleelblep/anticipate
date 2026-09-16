@@ -3,7 +3,7 @@ set -eu
 cd "$(dirname "$0")/.."
 for platform in normal emery; do
   flag=''
-  if [ "$platform" = emery ]; then flag='-DPBL_PLATFORM_EMERY'; fi
+  if [ "$platform" = emery ]; then flag='-DPBL_PLATFORM_EMERY -DPBL_RGB_BACKLIGHT'; fi
   cc -std=c99 -Wall -Wextra -Werror -ffunction-sections -fdata-sections \
     -Wl,--gc-sections $flag -Itests tests/watchface_test.c -o /tmp/anticipate-test
   /tmp/anticipate-test

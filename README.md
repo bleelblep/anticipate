@@ -1,50 +1,59 @@
-# Anticipate — time and battery
+# Anticipate — shake-to-show details
 
-A modification of [Anticipate by Unruh Bros. Print Co.](https://github.com/unruh-bros-print-co/anticipate).
+Based on [Anticipate by Unruh Bros. Print Co.](https://github.com/unruh-bros-print-co/anticipate).
 
-The original numeral artwork stays inside its centred 144 × 168 composition,
-with four-pixel insets and unchanged outer margins on larger displays.
-When the battery gauge appears, the time smoothly shrinks from 66 × 78 to
-56 × 66 pixels per full-width digit. A 330 ms eased transition reveals the
-thin gauge below it; an upward marker and percentage sit beneath the bar.
-At low/high charge, the current percentage replaces the nearby endpoint label
-to avoid overlapping text. Time follows the watch's 12/24-hour preference.
+The quiet view shows only the time. Shake/flick to reveal the original left
+column (date, weekday, daily high, current temperature, daily low and weather
+icon) plus the battery gauge beneath the time. The gauge's upward marker and
+percentage sit below its track. Both states retain the centred 144×168
+footprint and four-pixel inset, including the original margins on larger
+screens. The time smoothly shrinks to make room and expands when details hide.
 
 ## Clay settings
 
-- Battery bar: Off, Always, or On wrist flick (default).
-- Display duration: 3, 5 (default), 10, 15, or 30 seconds.
-- Pebble Time 2 only: custom backlight toggle and full-range red, green and
-  blue sliders (0–255 each). Disabled uses the system colour.
+- Time numerals: Anticipate, Naive or Brutal.
+- Details: Off, Always, or On wrist flick (default).
+- Reveal duration: 3, 5 (default), 10, 15 or 30 seconds. Shake again to extend it.
+- Date order and Celsius/Fahrenheit.
+- Pebble Time 2 RGB backlight: enable custom colour and adjust R/G/B (0–255).
+  Saving briefly previews the light. System brightness and timeout remain in
+  control. Disabling restores the system tint. Tint is reapplied on focus return
+  and backlight activation using the documented Light API.
 
-Flick detection uses Pebble's standard accelerometer tap/motion callback;
-other sharp movements can trigger it too. Another flick restarts the timer.
-The time expands again when the bar hides. Animation and expiry timers stop
-when the face loses focus or exits. The backlight tint is reapplied after
-notifications; normal system brightness and illumination timing remain intact.
-No weather, location or health access is requested.
+Watch identity is obtained only after PebbleKit JS is ready or while opening
+configuration, fixing the earlier premature watch-info lookup.
 
-## Build
+No health access is requested. Weather uses phone location and Open-Meteo, cached
+for 30 minutes. Failed/unavailable data displays dashes; watch weather expires
+after three hours. Incoming weather never cancels an active reveal. Sharp
+movements other than wrist flicks may also trigger Pebble's tap/motion callback.
 
-Use Pebble SDK 4.33.1 (the RGB APIs must be present), Node/npm and pebble-tool.
-Run `npm ci`, then `pebble build`. The result is `build/anticipate.pbw`.
-RGB control on emery also requires firmware providing
-`light_set_color_rgb888` and `light_set_system_color`.
+## Numeral artwork and licensing
 
-Supported targets: basalt, diorite, flint, emery, gabbro. RGB settings and API
-calls are restricted to emery (Pebble Time 2).
+Naive and Brutal are by [ir33k](https://github.com/ir33k). Their original GPL-2.0
+PDC numeral files are included under `resources/naive` and `resources/brutal`.
+Naive uses its original separate hour/minute shapes. Generated pixel rows are
+scaled into this face's layout; upstream shadows and other styling are omitted.
+Anticipate's original MIT notice is retained in `licenses/Anticipate-MIT.txt`.
+The combined distribution is GPL-2.0; see LICENSE and licenses/NOTICE.md.
 
-## Checks
+Corresponding source: https://github.com/bleelblep/anticipate
 
-Successfully compiled with Pebble SDK 4.33.1 for all five supported targets.
-Physical watch verification is still pending.
+## Build and tests
 
-Run `sh tests/run.sh` for host-side SDK-mock tests covering all times, gauge
-levels, animation clipping, reversal, repeated flicks, settings validation,
-focus changes, timer failure and RGB platform gating. They do not substitute
-for physical wrist-motion, display-performance or RGB-light verification.
+Requires Pebble SDK 4.33.1, pebble-tool 5.0.40, and Node/npm. Run `npm ci`,
+`pebble clean`, then `pebble build`. Output: `build/anticipate.pbw`.
+Supported platforms: basalt, diorite, flint, emery and gabbro. RGB controls
+require Time 2 firmware exposing `light_set_color_rgb888`,
+`light_set_system_color` and the BacklightService.
 
-`src/c/time_digits.h` contains the original PNG pixels. Regenerate it with
-`python tools/generate_time_digits.py` (Pillow required).
+Run `sh tests/run.sh` for host-side regression tests: three numeral styles,
+all times, all battery percentages, animation bounds/reversal, repeated flicks,
+settings, weather delivery during reveal, and deferred watch discovery.
+Physical wrist detection, backlight colours and animation performance still
+need verification on a real watch.
 
-Original license and artwork attribution are retained in LICENSE.
+Generated artwork can be rebuilt with Pillow:
+- `python tools/generate_time_digits.py`
+- `python tools/generate_column.py`
+- `python tools/generate_alt_digits.py`

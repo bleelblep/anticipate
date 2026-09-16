@@ -24,7 +24,9 @@ typedef union { char cstring[32]; int32_t int32; uint32_t uint32; } TupleValue;
 typedef struct { uint32_t key; int type; TupleValue *value; } Tuple;
 typedef struct { Tuple *tuples; int count; } DictionaryIterator;
 enum { MESSAGE_KEY_BatteryMode, MESSAGE_KEY_BatterySeconds, MESSAGE_KEY_CustomBacklight,
- MESSAGE_KEY_BacklightRed, MESSAGE_KEY_BacklightGreen, MESSAGE_KEY_BacklightBlue };
+ MESSAGE_KEY_BacklightRed, MESSAGE_KEY_BacklightGreen, MESSAGE_KEY_BacklightBlue,
+ MESSAGE_KEY_TimeStyle, MESSAGE_KEY_DateMonthFirst, MESSAGE_KEY_Fahrenheit,
+ MESSAGE_KEY_TEMP_HI, MESSAGE_KEY_TEMP_CUR, MESSAGE_KEY_TEMP_LO, MESSAGE_KEY_CONDITIONS, MESSAGE_KEY_WEATHER_AT, MESSAGE_KEY_REQUEST_WEATHER };
 #define GColorBlack 0
 #define GColorWhite 1
 #define GCornerNone 0
@@ -64,3 +66,14 @@ void app_focus_service_unsubscribe(void);
 void app_message_register_inbox_received(void (*)(DictionaryIterator*,void*));
 void app_message_open(int,int);
 void app_message_deregister_callbacks(void);
+
+#define APP_MSG_OK 0
+int app_message_outbox_begin(DictionaryIterator**);
+int app_message_outbox_send(void);
+void dict_write_uint8(DictionaryIterator*,uint32_t,uint8_t);
+int persist_write_data(int,const void*,size_t);
+int persist_read_data(int,void*,size_t);
+int persist_get_size(int);
+void light_enable_interaction(void);
+void backlight_service_subscribe(void (*)(bool));
+void backlight_service_unsubscribe(void);
