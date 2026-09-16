@@ -6,7 +6,9 @@
     "pebble-app"
   ],
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "@rebble/clay": "1.0.10"
+  },
   "pebble": {
     "displayName": "Anticipate",
     "uuid": "46eacbb9-5efc-439b-8889-942b365a591b",
@@ -22,8 +24,17 @@
     "watchapp": {
       "watchface": true
     },
-    "capabilities": [],
-    "messageKeys": [],
+    "capabilities": [
+      "configurable"
+    ],
+    "messageKeys": [
+      "BatteryMode",
+      "BatterySeconds",
+      "CustomBacklight",
+      "BacklightRed",
+      "BacklightGreen",
+      "BacklightBlue"
+    ],
     "resources": {
       "media": [
         {
