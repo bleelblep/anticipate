@@ -15,13 +15,16 @@ screens. The time smoothly shrinks to make room and expands when details hide.
 - Details: Off, Always, or On wrist flick (default).
 - Reveal duration: 3, 5 (default), 10, 15 or 30 seconds. Shake again to extend it.
 - Date order and Celsius/Fahrenheit.
-- Pebble Time 2 RGB backlight: enable custom colour and adjust R/G/B (0–255).
+- Weather location: use phone GPS or enter a city/postal code with a country/state.
+- Pebble Time 2 RGB backlight: enable custom colour and choose from 64 large swatches.
   Saving briefly previews the light. System brightness and timeout remain in
   control. Disabling restores the system tint. Tint is reapplied on focus return
   and backlight activation using the documented Light API.
 
 Watch identity is obtained only after PebbleKit JS is ready or while opening
-configuration, fixing the earlier premature watch-info lookup.
+configuration. All Clay control types are registered at startup before platform
+filtering, so the backlight controls cannot interrupt construction of the Save button.
+Save has a 56px touch target and stays at the bottom as you scroll.
 
 No health access is requested. Weather uses phone location and Open-Meteo, cached
 for 30 minutes. Failed/unavailable data displays dashes; watch weather expires

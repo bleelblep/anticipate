@@ -25,7 +25,7 @@ typedef struct { uint32_t key; int type; TupleValue *value; } Tuple;
 typedef struct { Tuple *tuples; int count; } DictionaryIterator;
 enum { MESSAGE_KEY_BatteryMode, MESSAGE_KEY_BatterySeconds, MESSAGE_KEY_CustomBacklight,
  MESSAGE_KEY_BacklightRed, MESSAGE_KEY_BacklightGreen, MESSAGE_KEY_BacklightBlue,
- MESSAGE_KEY_TimeStyle, MESSAGE_KEY_DateMonthFirst, MESSAGE_KEY_Fahrenheit,
+ MESSAGE_KEY_BacklightColor, MESSAGE_KEY_TimeStyle, MESSAGE_KEY_DateMonthFirst, MESSAGE_KEY_Fahrenheit,
  MESSAGE_KEY_TEMP_HI, MESSAGE_KEY_TEMP_CUR, MESSAGE_KEY_TEMP_LO, MESSAGE_KEY_CONDITIONS, MESSAGE_KEY_WEATHER_AT, MESSAGE_KEY_REQUEST_WEATHER };
 #define GColorBlack 0
 #define GColorWhite 1

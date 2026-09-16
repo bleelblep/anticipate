@@ -9,3 +9,4 @@ for platform in normal emery; do
   /tmp/anticipate-test
 done
 node tests/config_test.js
+node tests/weather_location_test.js

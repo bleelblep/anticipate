@@ -20,15 +20,18 @@ function parse(json, now) {
   return {TEMP_HI: Math.round(values[0]), TEMP_CUR: Math.round(values[1]),
     TEMP_LO: Math.round(values[2]), CONDITIONS: condition(c.weather_code,c.is_day), WEATHER_AT: now};
 }
-function request() {
+function request(force) {
   if (busy) return;
+  var settings={};
+  try {settings=JSON.parse(localStorage.getItem('clay-settings'))||{};} catch(e) {}
+  var locationKey=settings.WeatherGPS===false ? String(settings.WeatherLocation||'').trim() : 'GPS';
   var now=Math.floor(Date.now()/1000), cache;
   try {cache=JSON.parse(localStorage.getItem(CACHE));} catch(e) {cache=null;}
-  if (cache && now>=cache.WEATHER_AT && now-cache.WEATHER_AT<1800) {
-    Pebble.sendAppMessage(cache); return;
+  if (!force && cache && cache.locationKey===locationKey && now>=cache.WEATHER_AT && now-cache.WEATHER_AT<1800) {
+    delete cache.locationKey;Pebble.sendAppMessage(cache); return;
   }
   busy=true;
-  navigator.geolocation.getCurrentPosition(function(pos) {
+  function forecast(pos) {
     var xhr=new XMLHttpRequest();
     xhr.open('GET','https://api.open-meteo.com/v1/forecast?latitude='+pos.coords.latitude+
       '&longitude='+pos.coords.longitude+'&daily=temperature_2m_max,temperature_2m_min'+
@@ -39,11 +42,26 @@ function request() {
       if(xhr.status!==200) return;
       try {
         var data=parse(JSON.parse(xhr.responseText),Math.floor(Date.now()/1000));
-        if(data) {localStorage.setItem(CACHE,JSON.stringify(data));Pebble.sendAppMessage(data);}
+        if(data) {localStorage.setItem(CACHE,JSON.stringify(Object.assign({locationKey:locationKey},data)));Pebble.sendAppMessage(data);}
       } catch(e) {console.log('Weather response unavailable');}
     };
     xhr.onerror=xhr.ontimeout=function() {busy=false;};
     xhr.send();
-  },function() {busy=false;},{timeout:15000,maximumAge:60000});
+  }
+  if(settings.WeatherGPS===false) {
+    if(!locationKey) {busy=false;return;}
+    var geo=new XMLHttpRequest();
+    geo.open('GET','https://geocoding-api.open-meteo.com/v1/search?count=1&name='+encodeURIComponent(locationKey));
+    geo.timeout=15000;
+    geo.onerror=geo.ontimeout=function(){busy=false;};
+    geo.onload=function(){
+      try {
+        var result=JSON.parse(geo.responseText).results;
+        if(geo.status!==200 || !result || !result.length) {busy=false;return;}
+        forecast({coords:result[0]});
+      } catch(e) {busy=false;}
+    };
+    geo.send();
+  } else navigator.geolocation.getCurrentPosition(forecast,function() {busy=false;},{timeout:15000,maximumAge:60000});
 }
 module.exports={request:request,parse:parse,condition:condition};

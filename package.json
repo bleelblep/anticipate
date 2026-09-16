@@ -1,7 +1,7 @@
 {
   "name": "anticipate",
   "author": "Unruh Bros. Print Co.",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "keywords": [
     "pebble-app"
   ],
@@ -43,7 +43,10 @@
       "TEMP_LO",
       "CONDITIONS",
       "WEATHER_AT",
-      "REQUEST_WEATHER"
+      "REQUEST_WEATHER",
+      "BacklightColor",
+      "WeatherGPS",
+      "WeatherLocation"
     ],
     "resources": {
       "media": [

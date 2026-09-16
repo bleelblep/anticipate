@@ -295,12 +295,18 @@ static void inbox(DictionaryIterator *iter,void *context) {
   receive_setting(iter,MESSAGE_KEY_BacklightRed,104,&s_red,0,255);
   receive_setting(iter,MESSAGE_KEY_BacklightGreen,105,&s_green,0,255);
   receive_setting(iter,MESSAGE_KEY_BacklightBlue,106,&s_blue,0,255);
+  if(dict_find(iter,MESSAGE_KEY_BacklightColor)) {
+    int rgb=(s_red<<16)|(s_green<<8)|s_blue;
+    receive_setting(iter,MESSAGE_KEY_BacklightColor,110,&rgb,0,0xffffff);
+    s_red=(rgb>>16)&255;s_green=(rgb>>8)&255;s_blue=rgb&255;
+    persist_write_int(104,s_red);persist_write_int(105,s_green);persist_write_int(106,s_blue);
+  }
   cancel_timer(&s_hide_timer); subscribe_motion();
   transition(s_mode==MODE_ALWAYS);
   if(s_focused) {
     apply_light();
 #ifdef PBL_RGB_BACKLIGHT
-    if(dict_find(iter,MESSAGE_KEY_CustomBacklight) || dict_find(iter,MESSAGE_KEY_BacklightRed) ||
+    if(dict_find(iter,MESSAGE_KEY_BacklightColor) || dict_find(iter,MESSAGE_KEY_CustomBacklight) || dict_find(iter,MESSAGE_KEY_BacklightRed) ||
        dict_find(iter,MESSAGE_KEY_BacklightGreen) || dict_find(iter,MESSAGE_KEY_BacklightBlue)) light_enable_interaction();
 #endif
   }
